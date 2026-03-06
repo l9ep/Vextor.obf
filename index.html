@@ -581,7 +581,7 @@
 // ════════════════════════════════════════════════════════════
 // VEXOR ENGINE v6 — LOADSTRING BYTE ENCODING
 // Encodes entire script as shifted ASCII bytes.
-// Decodes + runs at runtime via loadstring + setfenv.
+// Decodes + runs at runtime via loadstring — no setfenv, works on all executors.
 // Random var names, junk locals, junk comments every run.
 // ════════════════════════════════════════════════════════════
 
@@ -657,40 +657,29 @@ function luaObfuscate(code) {
   const rowSize = randInt(15, 25);
   let tableRows = '';
   for (let i = 0; i < bytes.length; i += rowSize) {
-    tableRows += '  ' + bytes.slice(i, i + rowSize).join(', ') + ',\n';
+    tableRows += bytes.slice(i, i + rowSize).join(',') + ',';
   }
 
   const hash = randHex(32);
   const ts   = Date.now();
 
-  const out = [
-    `--[[ vexor.obf`,
-    `     Build : ${hash}`,
-    `     Time  : ${ts}`,
-    `]]`,
-    junkComment(),
-    ...junkLines,
-    junkComment(),
-    `local ${varKey} = ${key}`,
-    junkComment(),
-    `local ${varBytes} = {`,
-    tableRows + `}`,
-    junkComment(),
-    `local ${varDecoded} = {}`,
-    junkComment(),
-    `for ${varI} = 1, #${varBytes} do`,
-    `  ${varDecoded}[${varI}] = string.char(${varBytes}[${varI}] - ${varKey})`,
-    `end`,
-    junkComment(),
-    `local ${varChunk}, ${varErr} = loadstring(table.concat(${varDecoded}))`,
-    junkComment(),
-    `if ${varChunk} then`,
-    `  setfenv(${varChunk}, getfenv())`,
-    `  ${varChunk}()`,
-    `else`,
-    `  error(${varErr})`,
-    `end`,
-  ].join('\n');
+  // Build as one single unreadable line — no newlines, no structure
+  const junkFlat = junkLines
+    .filter(l => !l.startsWith('--'))
+    .join(' ');
+
+  const out =
+    `--[[vexor.obf ${hash} ${ts}]] ` +
+    junkFlat + ' ' +
+    `local ${varKey}=${key} ` +
+    `local ${varBytes}={${tableRows}} ` +
+    `local ${varDecoded}={} ` +
+    `for ${varI}=1,#${varBytes} do ` +
+    `${varDecoded}[${varI}]=string.char(${varBytes}[${varI}]-${varKey}) ` +
+    `end ` +
+    `local ${varChunk},${varErr}=loadstring(table.concat(${varDecoded})) ` +
+    `assert(${varChunk},${varErr}) ` +
+    `${varChunk}()`;
 
   return out;
 }
@@ -752,7 +741,7 @@ function downloadOutput() {
   const blob = new Blob([out], { type: 'text/plain' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'vexor_' + Date.now() + '.lua';
+  a.download = 'vexor_obfuscated.lua';
   a.click();
   showToast('Downloaded');
 }

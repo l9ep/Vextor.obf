@@ -579,119 +579,110 @@
 
 <script>
 // ════════════════════════════════════════════════════════════
-// VEXOR ENGINE v4 — MAXIMUM OBFUSCATION, ALL EXECUTOR SAFE
-// Pure Lua 5.1 output. No load(). No ~ operator. No //.
-// Every single run produces a completely unique output.
+// VEXOR ENGINE v5 — STRONG + ACTUALLY WORKS
+// Only battle-tested safe transforms used.
+// Pure Lua 5.1. No load(). No ~. No //.
 // ════════════════════════════════════════════════════════════
 
-// ─── UTILITIES ───────────────────────────────────────────────
 let _vc = 0;
 function resetVc() { _vc = 0; }
 
-// Produces names that are visually indistinguishable: lIl0OIlO_
+// Visually indistinguishable var names: lI1O0o combinations
 function genVar(prefix) {
-  const pool = ['l','I','1','O','0','o','lI','Il','IO','Ol','l1','1l','lO','0l','lIl','IlI','OlO','0l0'];
+  const pool = ['l','I','1','O','0','o','lI','Il','IO','Ol','l1','1l','lO','0l'];
   let base = (prefix !== undefined ? prefix : '_');
   let n = _vc++;
-  let suffix = '';
-  do {
-    suffix += pool[n % pool.length];
-    n = Math.floor(n / pool.length);
-  } while (n > 0);
-  return base + suffix + (prefix !== undefined && prefix !== '' ? '' : '_');
+  let s = '';
+  do { s += pool[n % pool.length]; n = Math.floor(n / pool.length); } while (n > 0);
+  return base + s + (prefix !== undefined && prefix !== '' ? '' : '_');
 }
 
 function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 function randHex(len) { return Array.from({length:len}, () => '0123456789ABCDEF'[randInt(0,15)]).join(''); }
 function randItem(arr) { return arr[randInt(0, arr.length - 1)]; }
-function shuffle(arr) {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = randInt(0, i);
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
 
-// ─── LAYER 1: COMMENT & WHITESPACE STRIPPING ─────────────────
-function stripCode(code) {
+// ─── STEP 1: STRIP COMMENTS ──────────────────────────────────
+function stripComments(code) {
+  // Remove multi-line comments
   code = code.replace(/--\[\[[\s\S]*?\]\]/g, '');
+  // Remove single-line comments
   code = code.replace(/--[^\n]*/g, '');
-  code = code.replace(/\r\n/g, '\n');
-  // Collapse multiple blank lines
-  code = code.replace(/\n{3,}/g, '\n\n');
   return code.trim();
 }
 
-// ─── LAYER 2: STRING EXTRACTION ──────────────────────────────
-// Pull ALL strings out before anything can corrupt them.
+// ─── STEP 2: STRING EXTRACTION ───────────────────────────────
+// Must happen FIRST before any other transform touches the code
 function extractStrings(code) {
   const strings = [];
-  // Double-quoted (handle escape sequences)
+
+  // Double-quoted strings
   code = code.replace(/"((?:\\[\s\S]|[^"\\])*)"/g, (_, c) => {
-    const i = strings.length; strings.push({ val: c, quote: '"' }); return `__VX${i}VX__`;
+    const i = strings.length;
+    strings.push(c);
+    return `__VX${i}VX__`;
   });
-  // Single-quoted
+
+  // Single-quoted strings
   code = code.replace(/'((?:\\[\s\S]|[^'\\])*)'/g, (_, c) => {
-    const i = strings.length; strings.push({ val: c, quote: "'" }); return `__VX${i}VX__`;
+    const i = strings.length;
+    strings.push(c);
+    return `__VX${i}VX__`;
   });
-  // Lua long strings [[ ... ]]
-  code = code.replace(/\[\[([^\]]*(?:\][^\]][^\]]*)*)\]\]/g, (_, c) => {
-    const i = strings.length; strings.push({ val: c, quote: '[[' }); return `__VX${i}VX__`;
-  });
+
   return { code, strings };
 }
 
-// ─── LAYER 3: VARIABLE & PARAM MANGLING ──────────────────────
-const LUA_SAFE = new Set([
+// ─── STEP 3: VARIABLE MANGLING ───────────────────────────────
+const KEYWORDS = new Set([
   'and','break','do','else','elseif','end','false','for','function',
   'goto','if','in','local','nil','not','or','repeat','return','then',
   'true','until','while',
-  // standard library
-  'print','pairs','ipairs','type','tostring','tonumber','math','string',
-  'table','io','os','require','pcall','xpcall','error','assert','select',
-  'unpack','rawget','rawset','setmetatable','getmetatable','next','dofile',
-  'collectgarbage','rawequal','rawlen','warn','coroutine','debug','utf8',
-  'bit32','arg','_G','_ENV','_VERSION',
-  // Roblox globals
+  'print','pairs','ipairs','type','tostring','tonumber',
+  'math','string','table','io','os','require',
+  'pcall','xpcall','error','assert','select','unpack',
+  'rawget','rawset','setmetatable','getmetatable','next',
+  'dofile','collectgarbage','rawequal','rawlen','warn',
+  'coroutine','debug','utf8','bit32',
+  'arg','_G','_ENV','_VERSION',
+  // Roblox
   'game','workspace','script','wait','spawn','delay','tick','time','task',
-  'Instance','Vector3','Vector2','Vector2int16','Vector3int16',
-  'CFrame','Color3','UDim2','UDim','Ray','Enum','shared','settings',
-  'elapsedTime','Players','RunService','UserInputService','TweenService',
+  'Instance','Vector3','Vector2','CFrame','Color3','UDim2','UDim',
+  'Ray','Enum','shared','settings','elapsedTime',
+  'Players','RunService','UserInputService','TweenService',
   'ReplicatedStorage','ReplicatedFirst','ServerStorage','ServerScriptService',
   'StarterGui','StarterPack','StarterPlayer','SoundService','HttpService',
-  'PathfindingService','DataStoreService','MessagingService','PhysicsService',
-  'CollectionService','TweenInfo','Random','Region3','NumberSequence',
-  'ColorSequence','NumberRange','Rect','UDim2','Axes','BrickColor',
+  'TweenInfo','Random','Region3','BrickColor','NumberSequence',
+  'ColorSequence','NumberRange','Axes',
 ]);
 
 function mangleVars(code) {
   const varMap = new Map();
 
   function ok(name) {
-    return name && !LUA_SAFE.has(name) && !name.startsWith('__VX') && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name);
+    return name
+      && !KEYWORDS.has(name)
+      && !name.startsWith('__VX')
+      && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name);
   }
+
   function reg(name) {
     if (ok(name) && !varMap.has(name)) varMap.set(name, genVar(''));
   }
 
-  // Collect locals (including multi-assign: local a, b, c)
-  const localRe = /\blocal\s+(?:function\s+)?([a-zA-Z_][a-zA-Z0-9_,\s]*)/g;
+  // Locals: local x, local function x, local x, y, z
+  const localRe = /\blocal\s+(?:function\s+)?([a-zA-Z_][a-zA-Z0-9_]*(?:\s*,\s*[a-zA-Z_][a-zA-Z0-9_]*)*)/g;
   let m;
   while ((m = localRe.exec(code)) !== null) {
-    m[1].split(',').forEach(part => {
-      const n = part.trim().split(/\s+/)[0];
-      reg(n);
-    });
+    m[1].split(',').forEach(p => reg(p.trim().split(/\s+/)[0]));
   }
 
-  // Collect for-loop vars: for i = / for k, v in
-  const forRe = /\bfor\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\s*,\s*[a-zA-Z_][a-zA-Z0-9_]*)*)\s*(?:=|in)/g;
+  // For loop vars: for i=1,10 or for k,v in
+  const forRe = /\bfor\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\s*,\s*[a-zA-Z_][a-zA-Z0-9_]*)*)\s*(?:=|in\b)/g;
   while ((m = forRe.exec(code)) !== null) {
-    m[1].split(',').forEach(part => reg(part.trim()));
+    m[1].split(',').forEach(p => reg(p.trim()));
   }
 
-  // Collect function params
+  // Function params
   const fnRe = /\bfunction\b[^(]*\(([^)]*)\)/g;
   while ((m = fnRe.exec(code)) !== null) {
     m[1].split(',').forEach(p => {
@@ -700,425 +691,236 @@ function mangleVars(code) {
     });
   }
 
-  // Apply — longest first to prevent partial replacement
+  // Apply longest-first to prevent partial matches
   [...varMap.keys()]
     .sort((a, b) => b.length - a.length)
     .forEach(old => {
-      const safe = old.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      code = code.replace(new RegExp(`\\b${safe}\\b`, 'g'), varMap.get(old));
+      const esc = old.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      code = code.replace(new RegExp(`\\b${esc}\\b`, 'g'), varMap.get(old));
     });
 
   return code;
 }
 
-// ─── LAYER 4: NUMBER OBFUSCATION ─────────────────────────────
-// Multiple strategies, nested — pure Lua 5.1, no // operator
-function obfNum(n, depth) {
-  depth = depth || 0;
-  if (isNaN(n) || depth > 2) return `(${n})`;
-  if (n === 0) {
-    const x = randInt(2, 40);
-    return `(${x}-${x})`;
-  }
-  if (n < 0) return `(-(${obfNum(-n, depth+1)}))`;
-
-  const strategies = [
-    // a + b
-    () => { const a = randInt(1, Math.min(n-1, 100)); return `(${obfNum(a,depth+1)}+${obfNum(n-a,depth+1)})`; },
-    // n + x - x
-    () => { const x = randInt(1, 50); return `(${obfNum(n+x,depth+1)}-${obfNum(x,depth+1)})`; },
-    // n*2 - n
-    () => `(${obfNum(n*2,depth+1)}-${obfNum(n,depth+1)})`,
-    // math.floor approach (always whole)
-    () => { const a = randInt(2, 6); return `(math.floor(${obfNum(n*a,depth+1)}/${obfNum(a,depth+1)}))`; },
-    // direct (baseline)
-    () => `(${n})`,
-  ];
-
-  // Avoid infinite recursion on depth
-  const available = depth < 2 ? strategies : [strategies[4]];
-  return randItem(available)();
-}
-
-function obfuscateNumbers(code) {
-  return code.replace(/\b(\d+)\b/g, (m, raw) => {
-    const n = parseInt(raw);
-    if (isNaN(n) || n > 65535 || n < 0) return m;
-    return obfNum(n, 0);
-  });
-}
-
-// ─── LAYER 5: DOUBLE-PASS STRING ENCRYPTION ──────────────────
-// Pass 1: XOR each byte with rolling key
-// Pass 2: byte-shuffle the result with a second key
-// Decoder uses a pure Lua 5.1 bitwise XOR function
+// ─── STEP 4: STRING ENCRYPTION VM ────────────────────────────
+// Rolling XOR, pure Lua 5.1 bitwise XOR via math (no ~ operator)
 function encryptStr(str) {
-  if (str.length === 0) return { enc: '', k1: 1, k2: 1, k3: 1 };
-  const k1 = randInt(15, 200);  // XOR base
-  const k2 = randInt(3, 31);    // XOR step
-  const k3 = randInt(7, 253);   // byte shuffle XOR
-
-  // Pass 1: rolling XOR
-  const pass1 = [];
+  if (str.length === 0) return { enc: '', k1: 1, k2: 1 };
+  const k1 = randInt(15, 200);
+  const k2 = randInt(3, 31);
+  let enc = '';
   for (let i = 0; i < str.length; i++) {
     const b = str.charCodeAt(i);
-    pass1.push(b ^ ((k1 + i * k2) % 255));
+    const k = (k1 + i * k2) % 255;
+    enc += '\\' + (b ^ k);
   }
-
-  // Pass 2: secondary XOR shuffle
-  const pass2 = pass1.map((b, i) => b ^ ((k3 + i) % 255));
-
-  const enc = pass2.map(b => '\\' + b).join('');
-  return { enc, k1, k2, k3 };
+  return { enc, k1, k2 };
 }
 
-// Pure Lua 5.1 bitwise XOR (no ~ operator, no bit32 dependency)
-function buildXorFn(fnName, mfName) {
-  const a = genVar('_xa'), b = genVar('_xb');
-  const r = genVar('_xr'), mv = genVar('_xm');
-  const ra = genVar('_xra'), rb = genVar('_xrb');
-  return `local function ${fnName}(${a},${b})
-  local ${r},${mv}=0,1
-  while ${a}>0 or ${b}>0 do
-    local ${ra}=${a}%2
-    local ${rb}=${b}%2
-    if ${ra}~=${rb} then ${r}=${r}+${mv} end
-    ${a}=${mfName}(${a}/2)
-    ${b}=${mfName}(${b}/2)
-    ${mv}=${mv}*2
-  end
-  return ${r}
-end`;
+// Pure Lua 5.1 XOR — no ~ operator, works on all executors
+function luaXorFn(fnName, mfName) {
+  const a = genVar('_a'), b = genVar('_b');
+  const r = genVar('_r'), mv = genVar('_v');
+  const ra = genVar('_p'), rb = genVar('_q');
+  return (
+    `local function ${fnName}(${a},${b})\n` +
+    `  local ${r},${mv}=0,1\n` +
+    `  while ${a}>0 or ${b}>0 do\n` +
+    `    local ${ra}=${a}%2\n` +
+    `    local ${rb}=${b}%2\n` +
+    `    if ${ra}~=${rb} then ${r}=${r}+${mv} end\n` +
+    `    ${a}=${mfName}(${a}/2)\n` +
+    `    ${b}=${mfName}(${b}/2)\n` +
+    `    ${mv}=${mv}*2\n` +
+    `  end\n` +
+    `  return ${r}\n` +
+    `end`
+  );
 }
 
 function buildStringVM(strings) {
   if (strings.length === 0) {
-    return { header: '', replacer: code => code.replace(/__VX(\d+)VX__/g, '""') };
+    return { header: '', replacer: c => c.replace(/__VX(\d+)VX__/g, '""') };
   }
 
-  const MF    = genVar('_mf');  // math.floor alias
-  const XOR   = genVar('_xf');  // xor function
-  const SB    = genVar('_sb');  // string.byte alias
-  const SC    = genVar('_sc');  // string.char alias
-  const TBL   = genVar('_st');  // string table
-  const CACHE = genVar('_sc2'); // decode cache
-  const DEC   = genVar('_df');  // decode function
-  const IDX   = genVar('_di');  // arg: index
-  const ENT   = genVar('_de');  // local: entry
-  const K1    = genVar('_k1');  // local: key1
-  const K2    = genVar('_k2');  // local: key2
-  const K3    = genVar('_k3');  // local: key3
-  const RES   = genVar('_dr');  // local: result
-  const I     = genVar('_ii');  // loop var
-  const B     = genVar('_bb');  // byte var
-  const KK    = genVar('_kk');  // computed key var
+  const MF    = genVar('_mf');
+  const XOR   = genVar('_xr');
+  const TBL   = genVar('_tb');
+  const CACHE = genVar('_ch');
+  const DEC   = genVar('_dc');
+  const IDX   = genVar('_id');
+  const ENT   = genVar('_en');
+  const K1    = genVar('_k1');
+  const K2    = genVar('_k2');
+  const RES   = genVar('_rs');
+  const II    = genVar('_ii');
+  const BB    = genVar('_bb');
+  const KK    = genVar('_kk');
 
-  // Build encrypted string entries — shuffle order for extra confusion
-  const indices = shuffle(strings.map((_, i) => i));
-  let entries = '';
+  // Build the encrypted string table
+  let tblEntries = '';
   strings.forEach((s, i) => {
-    const { enc, k1, k2, k3 } = encryptStr(s.val);
-    entries += `[${obfNum(i,0)}]={${obfNum(k1,0)},${obfNum(k2,0)},${obfNum(k3,0)},"${enc}"},\n`;
+    const { enc, k1, k2 } = encryptStr(s);
+    tblEntries += `[${i}]={${k1},${k2},"${enc}"},\n`;
   });
 
-  const xorFnCode = buildXorFn(XOR, MF);
-
-  const header = `local ${MF}=math.floor
-local ${SB}=string.byte
-local ${SC}=string.char
-${xorFnCode}
-local ${TBL}={
-${entries}}
-local ${CACHE}={}
-local function ${DEC}(${IDX})
-  if ${CACHE}[${IDX}] then return ${CACHE}[${IDX}] end
-  local ${ENT}=${TBL}[${IDX}]
-  local ${K1},${K2},${K3},${RES}=${ENT}[${obfNum(1,0)}],${ENT}[${obfNum(2,0)}],${ENT}[${obfNum(3,0)}],""
-  for ${I}=${obfNum(1,0)},#${ENT}[${obfNum(4,0)}] do
-    local ${B}=${SB}(${ENT}[${obfNum(4,0)}],${I})
-    local ${KK}=(${K3}+(${I}-${obfNum(1,0)}))%${obfNum(255,0)}
-    ${B}=${XOR}(${B},${KK})
-    ${KK}=(${K1}+(${I}-${obfNum(1,0)})*${K2})%${obfNum(255,0)}
-    ${B}=${XOR}(${B},${KK})
-    ${RES}=${RES}..${SC}(${B})
-  end
-  ${CACHE}[${IDX}]=${RES}
-  return ${RES}
-end`;
+  const header =
+    `local ${MF}=math.floor\n` +
+    luaXorFn(XOR, MF) + '\n' +
+    `local ${TBL}={\n${tblEntries}}\n` +
+    `local ${CACHE}={}\n` +
+    `local function ${DEC}(${IDX})\n` +
+    `  if ${CACHE}[${IDX}] then return ${CACHE}[${IDX}] end\n` +
+    `  local ${ENT}=${TBL}[${IDX}]\n` +
+    `  local ${K1},${K2},${RES}=${ENT}[1],${ENT}[2],""\n` +
+    `  for ${II}=1,#${ENT}[3] do\n` +
+    `    local ${BB}=math.floor(string.byte(${ENT}[3],${II}))\n` +
+    `    local ${KK}=(${K1}+(${II}-1)*${K2})%255\n` +
+    `    ${RES}=${RES}..string.char(${XOR}(${BB},${KK}))\n` +
+    `  end\n` +
+    `  ${CACHE}[${IDX}]=${RES}\n` +
+    `  return ${RES}\n` +
+    `end\n`;
 
   const replacer = code =>
-    code.replace(/__VX(\d+)VX__/g, (_, i) => `${DEC}(${obfNum(parseInt(i),0)})`);
+    code.replace(/__VX(\d+)VX__/g, (_, i) => `${DEC}(${parseInt(i)})`);
 
   return { header, replacer };
 }
 
-// ─── LAYER 6: FUNCTION CALL DISPATCHER ───────────────────────
-// Wraps function calls through an indirection dispatch table
-// So print(x) becomes _dispatch[key](x) — hides call targets
-function buildDispatcher(code) {
-  const DISP = genVar('_dp');
-  const targets = [];
-  const aliasMap = {};
-
-  // Find all global function calls that are safe to redirect
-  const safe = [
-    'print','warn','error','assert','pcall','xpcall',
-    'tostring','tonumber','type','pairs','ipairs','next','select','unpack',
-    'rawget','rawset','rawequal','rawlen',
-    'setmetatable','getmetatable','collectgarbage',
-    'math.floor','math.ceil','math.abs','math.max','math.min',
-    'math.random','math.sqrt',
-    'string.byte','string.char','string.len','string.sub',
-    'string.find','string.gsub','string.match','string.format',
-    'string.upper','string.lower','string.rep',
-    'table.insert','table.remove','table.concat','table.sort',
-  ];
-
-  safe.forEach(fn => {
-    if (code.includes(fn + '(') || code.includes(fn + ' (')) {
-      const key = genVar('_dk');
-      aliasMap[fn] = key;
-      targets.push({ fn, key });
-    }
-  });
-
-  if (targets.length === 0) return { code, dispHeader: '' };
-
-  // Build dispatch table — shuffled
-  const shuffledTargets = shuffle(targets);
-  let tableEntries = shuffledTargets.map(({ fn, key }) =>
-    `[${obfNum(targets.indexOf(targets.find(t => t.fn === fn)),0)}]=${fn}`
-  ).join(',');
-
-  // Actually build as named-key table for clarity
-  let dispHeader = `local ${DISP}={`;
-  targets.forEach(({ fn, key }, i) => {
-    const safeKey = obfNum(i, 0);
-    dispHeader += `[${safeKey}]=${fn},`;
-  });
-  dispHeader += '}\n';
-
-  // Replace calls
-  targets.forEach(({ fn, key }, i) => {
-    const safe2 = fn.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    // Replace `fn(` with `DISP[i](`
-    const dispCall = `${DISP}[${obfNum(i,0)}](`;
-    code = code.replace(new RegExp(safe2 + '\\s*\\(', 'g'), dispCall);
-  });
-
-  return { code, dispHeader };
-}
-
-// ─── LAYER 7: CONTROL FLOW OBFUSCATION ───────────────────────
-function obfuscateControlFlow(code) {
-  // if cond then → local _b=(cond) if _b then
-  code = code.replace(/\bif\s+((?:[^(\n]|\([^)]*\))+?)\s+then\b/g, (m, cond) => {
-    const cv = genVar('_cf');
-    return `local ${cv}=(${cond})\nif ${cv} then`;
-  });
-  // while cond do → local _w=(cond) while _w do
-  code = code.replace(/\bwhile\s+((?:[^(\n]|\([^)]*\))+?)\s+do\b/g, (m, cond) => {
-    const wv = genVar('_wf');
-    return `local ${wv}=(${cond})\nwhile ${wv} do`;
-  });
-  return code;
-}
-
-// ─── LAYER 8: MULTI-TYPE JUNK INJECTION ──────────────────────
-// 12 different junk templates, injected at random density
-function makeJunk() {
-  const v1 = genVar('_j'), v2 = genVar('_j'), v3 = genVar('_j'), v4 = genVar('_j');
-  const n1 = obfNum(randInt(1,999),0), n2 = obfNum(randInt(1,999),0), n3 = obfNum(randInt(1,9),0);
+// ─── STEP 5: NUMBER OBFUSCATION ──────────────────────────────
+// Safe — only wraps numbers in simple math. No nesting on indices.
+function obfNum(n) {
+  if (n === 0) { const x = randInt(2,30); return `(${x}-${x})`; }
+  if (n < 0) return `(-(${obfNum(-n)}))`;
   return randItem([
-    // arithmetic dead var
-    () => `local ${v1}=${n1} local ${v2}=${n2} local ${v3}=${v1}+${v2}`,
-    // math.floor dead call
-    () => `do local ${v1}=math.floor(${obfNum(randInt(100,9999),0)}/math.max(${obfNum(randInt(2,9),0)},${obfNum(1,0)})) end`,
-    // type check dead
-    () => `local ${v1}=type(${obfNum(randInt(0,5),0)}==${obfNum(randInt(0,5),0)} and nil or false)`,
-    // tostring dead
-    () => `do local ${v1}=tostring(${obfNum(randInt(1,9999),0)}) local ${v2}=#${v1} end`,
-    // table dead
-    () => `local ${v1}=({${n1},${n2},${n3}})[${obfNum(randInt(1,3),0)}]`,
-    // string.byte dead
-    () => `do local ${v1}=string.byte("${randHex(randInt(2,6))}",${obfNum(1,0)}) end`,
-    // nested math
-    () => `local ${v1}=math.abs(${obfNum(randInt(1,500),0)}-${obfNum(randInt(1,500),0)})`,
-    // pcall dead
-    () => `do local ${v1},${v2}=pcall(function() return ${n1} end) end`,
-    // multi-assign
-    () => `local ${v1},${v2},${v3}=${n1},${n2},${n3}`,
-    // repeat dead
-    () => `local ${v1}=${n1} repeat ${v1}=${v1}-${obfNum(1,0)} until ${v1}<=${obfNum(0,0)}`,
-    // string.len dead
-    () => `local ${v1}=string.len("${randHex(randInt(4,16))}")`,
-    // for loop dead
-    () => `local ${v4}=${obfNum(0,0)} for ${v1}=${obfNum(1,0)},${obfNum(randInt(3,8),0)} do ${v4}=${v4}+${v1} end`,
+    () => { const a = randInt(1, Math.min(n, 60)); return `(${a}+(${n-a}))`; },
+    () => { const x = randInt(1,20); return `(${n+x}-${x})`; },
+    () => `(${n*2}-${n})`,
+    () => `(${n})`,
+  ])();
+}
+
+function obfuscateNumbers(code) {
+  // Only obfuscate standalone numbers NOT used as table indices [n] or string positions
+  // to avoid breaking things like string.sub(s,1,3) or tbl[1]
+  return code.replace(/(?<![.\[\:])(?<!\w)(\d+)(?!\s*[,\])]|\s*\.\.)(?!\w)/g, (m, raw) => {
+    const n = parseInt(raw);
+    if (isNaN(n) || n > 9999 || n < 0) return m;
+    return obfNum(n);
+  });
+}
+
+// ─── STEP 6: SAFE JUNK INJECTION ─────────────────────────────
+// Only uses dead do...end blocks — safest possible junk
+// No fake loops, no repeat, no stuff that can interact with real code
+function makeJunk() {
+  const v1 = genVar('_j'), v2 = genVar('_j'), v3 = genVar('_j');
+  const n1 = randInt(1,999), n2 = randInt(1,999);
+  return randItem([
+    () => `do local ${v1}=${n1}+${n2} end`,
+    () => `do local ${v1}=math.abs(${n1}-${n2}) end`,
+    () => `do local ${v1}=type(nil) end`,
+    () => `do local ${v1}=tostring(${n1}) end`,
+    () => `do local ${v1},${v2}=${n1},${n2} local ${v3}=${v1}+${v2} end`,
+    () => `do local ${v1}=string.len("${randHex(randInt(2,8))}") end`,
+    () => `do local ${v1}=(${n1}*2)-${n1} end`,
+    () => `do local ${v1}=math.max(${n1},${n2}) end`,
+    () => `do local ${v1}=({${n1},${n2},${n1+n2}})[2] end`,
   ])();
 }
 
 function injectJunk(code, density) {
   return code.split('\n').map(line => {
     if (!line.trim()) return line;
-    if (Math.random() < density) {
-      // Sometimes inject 2 junk lines
-      const extra = Math.random() < 0.2 ? '\n' + makeJunk() : '';
-      return line + '\n' + makeJunk() + extra;
-    }
+    if (Math.random() < density) return line + '\n' + makeJunk();
     return line;
   }).join('\n');
 }
 
-// ─── LAYER 9: STDLIB ALIASING ─────────────────────────────────
-// Every stdlib call hidden behind a randomly-named local
+// ─── STEP 7: STDLIB ALIASING ─────────────────────────────────
+// Hide stdlib calls behind local aliases
 function aliasGlobals(code) {
   const targets = [
-    'string.byte','string.char','string.len','string.sub','string.rep',
-    'string.upper','string.lower','string.format','string.find',
-    'string.gsub','string.match','string.gmatch','string.reverse',
     'math.floor','math.ceil','math.abs','math.max','math.min',
-    'math.random','math.sqrt','math.huge','math.pi',
+    'math.random','math.sqrt',
+    'string.byte','string.char','string.len','string.sub',
+    'string.rep','string.upper','string.lower','string.format',
+    'string.find','string.gsub','string.match',
     'table.insert','table.remove','table.concat','table.sort',
-    'table.unpack',
-    'tostring','tonumber','type','pairs','ipairs','next',
-    'pcall','xpcall','rawset','rawget','rawequal','rawlen',
-    'setmetatable','getmetatable','select','unpack','assert',
-    'collectgarbage',
+    'tostring','tonumber','type','pairs','ipairs',
+    'pcall','xpcall','rawset','rawget',
+    'setmetatable','getmetatable','select','unpack',
   ];
 
-  // Shuffle the alias assignments so order is unpredictable
-  const used = shuffle(targets.filter(t => code.includes(t)));
   let aliasHeader = '';
-
-  used.forEach(orig => {
-    const alias = genVar('_al');
-    aliasHeader += `local ${alias}=${orig}\n`;
-    const safe = orig.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    code = code.replace(new RegExp(safe, 'g'), alias);
+  // Only alias what's actually in the code
+  targets.forEach(orig => {
+    if (code.includes(orig)) {
+      const alias = genVar('_al');
+      aliasHeader += `local ${alias}=${orig}\n`;
+      const esc = orig.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      code = code.replace(new RegExp(esc, 'g'), alias);
+    }
   });
 
   return { code, aliasHeader };
 }
 
-// ─── LAYER 10: CHAR CONCAT SPLITTING ─────────────────────────
-// Any remaining readable strings → string.char chain
-function charSplit(code) {
-  return code.replace(/"([^"\n\\]{2,12})"/g, (m, s) => {
-    const parts = s.split('').map(c => `string.char(${obfNum(c.charCodeAt(0),0)})`);
-    return '(' + parts.join('..') + ')';
-  });
-}
-
-// ─── LAYER 11: INTEGER ENCODING TABLE ────────────────────────
-// Encode small constant integers used in the script as
-// lookups into a pre-computed table — adds another layer
-// of indirection decompilers struggle with
-function buildIntTable(code) {
-  const INT = genVar('_it');
-  // Find all simple integer literals in the mangled code
-  const seen = new Set();
-  code.replace(/\b(\d{1,4})\b/g, (_, n) => seen.add(parseInt(n)));
-  const nums = [...seen].filter(n => n >= 0 && n <= 999).slice(0, 60);
-
-  if (nums.length < 5) return { code, intHeader: '' };
-
-  // Shuffle the assignment order
-  const shuffled = shuffle(nums);
-  let intHeader = `local ${INT}={}\n`;
-  shuffled.forEach(n => {
-    const a = randInt(1, Math.min(n+1, 50));
-    const b = n - a + a; // = n
-    intHeader += `${INT}[${n}]=(${a}+${b-a})\n`;
-  });
-
-  // Replace plain numeric literals with table lookups (selectively)
-  nums.forEach(n => {
-    code = code.replace(new RegExp(`(?<![.\\d])\\b(${n})\\b(?![.\\d])`, 'g'), (m) => {
-      return Math.random() < 0.5 ? `${INT}[${n}]` : m;
-    });
-  });
-
-  return { code, intHeader };
-}
-
-// ─── LAYER 12: PROXY ENV WRAPPER ─────────────────────────────
-// Entire script runs inside a setmetatable proxy environment
-// Makes global resolution opaque to static analysis
-function wrapProxy(code, headers) {
+// ─── STEP 8: OUTER CLOSURE WRAPPER ───────────────────────────
+function wrapClosure(body) {
   const outerV = genVar('_OV');
-  const pxV    = genVar('_px');
-  const evV    = genVar('_ev');
-  const ekV    = genVar('_ek');
   const fnV    = genVar('_fn');
   const hash   = randHex(32);
   const ts     = Date.now();
 
-  const allHeaders = headers.join('\n');
-
-  const inner = `${allHeaders}
-local ${pxV}=setmetatable({},{__index=function(${evV},${ekV}) return rawget(_G,${ekV}) end})
-local function ${fnV}()
-${code}
-end
-${fnV}()`;
-
-  return `--[[ vexor.obf
-     Build : ${hash}
-     Time  : ${ts}
-]]
-local ${outerV}=(function()
-${inner}
-end)()`;
+  return (
+    `--[[ vexor.obf\n` +
+    `     Build : ${hash}\n` +
+    `     Time  : ${ts}\n` +
+    `]]\n` +
+    `local ${outerV}=(function()\n` +
+    `local function ${fnV}()\n` +
+    body + '\n' +
+    `end\n` +
+    `${fnV}()\n` +
+    `end)()`
+  );
 }
 
 // ─── MASTER ORCHESTRATOR ─────────────────────────────────────
 function luaObfuscate(code) {
   resetVc();
 
-  // Step 0 — strip comments & normalize whitespace
-  code = stripCode(code);
+  // 1 — strip comments
+  code = stripComments(code);
   if (!code) throw new Error('empty script');
 
-  // Step 1 — extract ALL strings first (protects them from all transforms)
-  const { code: c1, strings } = extractStrings(code);
+  // 2 — extract strings first (protects them from all transforms)
+  const { code: c2, strings } = extractStrings(code);
 
-  // Step 2 — mangle every variable & param name
-  const c2 = mangleVars(c1);
+  // 3 — mangle variable names
+  const c3 = mangleVars(c2);
 
-  // Step 3 — obfuscate control flow structures
-  const c3 = obfuscateControlFlow(c2);
-
-  // Step 4 — obfuscate all numeric literals
-  const c4 = obfuscateNumbers(c3);
-
-  // Step 5 — inject junk code at 35% density
-  const c5 = injectJunk(c4, 0.35);
-
-  // Step 6 — build double-pass XOR string VM + replace placeholders
+  // 4 — build string VM & replace placeholders
   const { header: strHeader, replacer } = buildStringVM(strings);
-  const c6 = replacer(c5);
+  const c4 = replacer(c3);
 
-  // Step 7 — wrap global function calls in dispatch table
-  const { code: c7, dispHeader } = buildDispatcher(c6);
+  // 5 — alias stdlib globals
+  const { code: c5, aliasHeader } = aliasGlobals(c4);
 
-  // Step 8 — alias all stdlib globals behind random names
-  const { code: c8, aliasHeader } = aliasGlobals(c7);
+  // 6 — obfuscate numbers (safe regex — skips indices/positions)
+  const c6 = obfuscateNumbers(c5);
 
-  // Step 9 — char-split any remaining short visible strings
-  const c9 = charSplit(c8);
+  // 7 — inject safe junk at 25% density
+  const c7 = injectJunk(c6, 0.25);
 
-  // Step 10 — integer lookup table for small constants
-  const { code: c10, intHeader } = buildIntTable(c9);
-
-  // Step 11 — inject another round of junk after all transforms
-  const c11 = injectJunk(c10, 0.15);
-
-  // Step 12 — wrap everything in proxy env + outer closure
-  const headers = [aliasHeader, dispHeader, intHeader, strHeader].filter(Boolean);
-  return wrapProxy(c11, headers);
+  // 8 — assemble and wrap
+  const body = aliasHeader + '\n' + strHeader + '\n' + c7;
+  return wrapClosure(body);
 }
 
-// ─── UI ───────────────────────────────────────────────────────
+// ─── UI ──────────────────────────────────────────────────────
 function showToast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -1189,7 +991,6 @@ function obfuscate() {
   btn.textContent = 'Processing...';
   setStatus('Obfuscating...', '');
 
-  // Use setTimeout so UI updates before heavy computation
   setTimeout(() => {
     try {
       const result = luaObfuscate(input);

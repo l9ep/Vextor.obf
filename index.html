@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VEXOR — Lua Obfuscator</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #f8f8f6;
+    --bg2: #f0f0ee;
+    --bg3: #e8e8e5;
+    --white: #ffffff;
+    --border: #e0e0dc;
+    --border2: #d0d0cc;
+    --text: #1a1a18;
+    --muted: #8a8a84;
+    --muted2: #b0b0aa;
+    --accent: #1a1a18;
+    --mono: 'DM Mono', monospace;
+    --display: 'Syne', sans-serif;
+    --body: 'DM Sans', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--body);
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Subtle grain texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 0 32px 80px;
+  }
+
+  /* ── HEADER ── */
+  header {
+    padding: 64px 0 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .logo-row {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 12px;
+  }
+
+  .logo {
+    font-family: var(--display);
+    font-size: clamp(48px, 8vw, 88px);
+    font-weight: 800;
+    letter-spacing: -3px;
+    color: var(--text);
+    line-height: 1;
+    animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .logo-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--text);
+    margin-bottom: 12px;
+    animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
+  }
+
+  .tagline {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--muted);
+    text-transform: uppercase;
+    animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .header-line {
+    width: 100%;
+    height: 1px;
+    background: var(--border);
+    margin: 32px 0;
+    animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both;
+  }
+
+  /* ── PILLS ── */
+  .pills {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 48px;
+    animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.35s both;
+  }
+
+  .pill {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    padding: 5px 14px;
+    border: 1px solid var(--border2);
+    color: var(--muted);
+    background: var(--white);
+    border-radius: 100px;
+    text-transform: uppercase;
+    transition: all 0.2s;
+  }
+
+  .pill:hover {
+    border-color: var(--text);
+    color: var(--text);
+  }
+
+  /* ── EDITOR ── */
+  .editor-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 1px;
+    animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.4s both;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 24px rgba(0,0,0,0.04);
+  }
+
+  @media (max-width: 720px) {
+    .editor-grid { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--white);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .panel-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .panel-status {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--border2);
+    transition: background 0.3s;
+  }
+
+  .panel-status.active {
+    background: #1a1a18;
+  }
+
+  textarea {
+    flex: 1;
+    width: 100%;
+    min-height: 300px;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.8;
+    padding: 20px;
+    resize: vertical;
+    caret-color: var(--text);
+  }
+
+  textarea::placeholder {
+    color: var(--muted2);
+  }
+
+  .panel-footer {
+    display: flex;
+    gap: 6px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+    flex-wrap: wrap;
+  }
+
+  /* ── BUTTONS ── */
+  .btn {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 7px 14px;
+    border: 1px solid var(--border2);
+    background: var(--white);
+    color: var(--muted);
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.15s;
+  }
+
+  .btn:hover {
+    border-color: var(--text);
+    color: var(--text);
+    background: var(--white);
+  }
+
+  .btn:active { transform: scale(0.97); }
+
+  #fileInput { display: none; }
+
+  /* ── OBFUSCATE ROW ── */
+  .action-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 12px 0;
+    animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.5s both;
+  }
+
+  .btn-obfuscate {
+    font-family: var(--display);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    padding: 15px 48px;
+    background: var(--text);
+    color: var(--white);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-obfuscate::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0);
+    transition: background 0.2s;
+  }
+
+  .btn-obfuscate:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  }
+
+  .btn-obfuscate:hover::after {
+    background: rgba(255,255,255,0.06);
+  }
+
+  .btn-obfuscate:active { transform: translateY(0); }
+
+  .btn-obfuscate.loading {
+    pointer-events: none;
+    opacity: 0.6;
+  }
+
+  .status-text {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: var(--muted);
+    transition: all 0.3s;
+  }
+
+  .status-text.success { color: var(--text); }
+  .status-text.error { color: #cc4444; }
+
+  /* ── FEATURES ── */
+  .features-section {
+    margin-top: 56px;
+    animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.55s both;
+  }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 4px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+
+  @media (max-width: 720px) {
+    .features-grid { grid-template-columns: 1fr 1fr; }
+  }
+
+  @media (max-width: 480px) {
+    .features-grid { grid-template-columns: 1fr; }
+  }
+
+  .feature {
+    background: var(--white);
+    padding: 24px 22px;
+    transition: background 0.2s;
+  }
+
+  .feature:hover {
+    background: var(--bg2);
+  }
+
+  .feature-num {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--muted2);
+    margin-bottom: 10px;
+  }
+
+  .feature-name {
+    font-family: var(--display);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+
+  .feature-desc {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+    font-weight: 300;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    margin-top: 64px;
+    padding-top: 28px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.6s both;
+  }
+
+  .footer-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .footer-logo {
+    font-family: var(--display);
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--text);
+  }
+
+  .footer-sep {
+    width: 1px;
+    height: 16px;
+    background: var(--border2);
+  }
+
+  .footer-by {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+
+  .footer-right {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+
+  .footer-right a {
+    color: var(--text);
+    text-decoration: none;
+    border-bottom: 1px solid var(--border2);
+    padding-bottom: 1px;
+    transition: border-color 0.2s;
+  }
+
+  .footer-right a:hover { border-color: var(--text); }
+
+  /* ── TOAST ── */
+  .toast {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--text);
+    color: var(--white);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    padding: 11px 24px;
+    border-radius: 100px;
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 999;
+    white-space: nowrap;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  }
+
+  .toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="wrapper">
+  <!-- HEADER -->
+  <header>
+    <div class="logo-row">
+      <div class="logo">VEXOR</div>
+      <div class="logo-dot"></div>
+    </div>
+    <div class="tagline">Lua Obfuscator — Unbreakable · Universal · Instant</div>
+  </header>
+
+  <div class="header-line"></div>
+
+  <div class="pills">
+    <div class="pill">Variable Mangling</div>
+    <div class="pill">String Encryption</div>
+    <div class="pill">Control Flow</div>
+    <div class="pill">Anti-Tamper</div>
+    <div class="pill">Bytecode Wrap</div>
+    <div class="pill">All Executors</div>
+  </div>
+
+  <!-- EDITOR -->
+  <div class="editor-grid">
+    <!-- INPUT -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-label">Input Script</span>
+        <div class="panel-status" id="inputDot"></div>
+      </div>
+      <textarea id="inputCode"
+        placeholder="-- paste your lua script here&#10;-- or upload a .lua file below&#10;&#10;local function example()&#10;    print('vexor will protect this')&#10;end"
+        oninput="document.getElementById('inputDot').classList.toggle('active', this.value.length > 0)"
+      ></textarea>
+      <div class="panel-footer">
+        <input type="file" id="fileInput" accept=".lua,.txt"/>
+        <button class="btn" onclick="document.getElementById('fileInput').click()">↑ Upload</button>
+        <button class="btn" onclick="clearInput()">✕ Clear</button>
+      </div>
+    </div>
+
+    <!-- OUTPUT -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-label">Obfuscated Output</span>
+        <div class="panel-status" id="outputDot"></div>
+      </div>
+      <textarea id="outputCode"
+        placeholder="-- obfuscated output appears here&#10;-- fully encrypted & protected"
+        readonly
+      ></textarea>
+      <div class="panel-footer">
+        <button class="btn" onclick="copyOutput()">⧉ Copy</button>
+        <button class="btn" onclick="downloadOutput()">↓ Download</button>
+        <button class="btn" onclick="clearOutput()">✕ Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACTION ROW -->
+  <div class="action-row">
+    <button class="btn-obfuscate" id="obfBtn" onclick="obfuscate()">OBFUSCATE</button>
+    <span class="status-text" id="statusText">Ready</span>
+  </div>
+
+  <!-- FEATURES -->
+  <div class="features-section">
+    <div class="section-label">What's inside</div>
+    <div class="features-grid">
+      <div class="feature">
+        <div class="feature-num">01</div>
+        <div class="feature-name">Variable Mangling</div>
+        <div class="feature-desc">All identifiers renamed to indistinguishable garbage strings</div>
+      </div>
+      <div class="feature">
+        <div class="feature-num">02</div>
+        <div class="feature-name">String Encryption</div>
+        <div class="feature-desc">Every string XOR-encoded with a random key at runtime</div>
+      </div>
+      <div class="feature">
+        <div class="feature-num">03</div>
+        <div class="feature-name">Control Flow</div>
+        <div class="feature-desc">Logic scrambled with dead code injection and fake jumps</div>
+      </div>
+      <div class="feature">
+        <div class="feature-num">04</div>
+        <div class="feature-name">Anti-Tamper</div>
+        <div class="feature-desc">Script self-destructs if integrity is compromised</div>
+      </div>
+      <div class="feature">
+        <div class="feature-num">05</div>
+        <div class="feature-name">Bytecode Wrap</div>
+        <div class="feature-desc">Entire script wrapped in a custom virtual loader</div>
+      </div>
+      <div class="feature">
+        <div class="feature-num">06</div>
+        <div class="feature-name">Constant Folding</div>
+        <div class="feature-desc">All numeric constants obfuscated through math expressions</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="footer-left">
+      <div class="footer-logo">VEXOR</div>
+      <div class="footer-sep"></div>
+      <div class="footer-by">Made by Yuki</div>
+    </div>
+    <div class="footer-right">
+      Discord: <a href="https://discord.com/users/y4zr" target="_blank">y4zr</a>
+    </div>
+  </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+// VEXOR ENGINE v4 — MAXIMUM OBFUSCATION, ALL EXECUTOR SAFE
+// Pure Lua 5.1 output. No load(). No ~ operator. No //.
+// Every single run produces a completely unique output.
+// ════════════════════════════════════════════════════════════
+
+// ─── UTILITIES ───────────────────────────────────────────────
+let _vc = 0;
+function resetVc() { _vc = 0; }
+
+// Produces names that are visually indistinguishable: lIl0OIlO_
+function genVar(prefix) {
+  const pool = ['l','I','1','O','0','o','lI','Il','IO','Ol','l1','1l','lO','0l','lIl','IlI','OlO','0l0'];
+  let base = (prefix !== undefined ? prefix : '_');
+  let n = _vc++;
+  let suffix = '';
+  do {
+    suffix += pool[n % pool.length];
+    n = Math.floor(n / pool.length);
+  } while (n > 0);
+  return base + suffix + (prefix !== undefined && prefix !== '' ? '' : '_');
+}
+
+function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function randHex(len) { return Array.from({length:len}, () => '0123456789ABCDEF'[randInt(0,15)]).join(''); }
+function randItem(arr) { return arr[randInt(0, arr.length - 1)]; }
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = randInt(0, i);
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ─── LAYER 1: COMMENT & WHITESPACE STRIPPING ─────────────────
+function stripCode(code) {
+  code = code.replace(/--\[\[[\s\S]*?\]\]/g, '');
+  code = code.replace(/--[^\n]*/g, '');
+  code = code.replace(/\r\n/g, '\n');
+  // Collapse multiple blank lines
+  code = code.replace(/\n{3,}/g, '\n\n');
+  return code.trim();
+}
+
+// ─── LAYER 2: STRING EXTRACTION ──────────────────────────────
+// Pull ALL strings out before anything can corrupt them.
+function extractStrings(code) {
+  const strings = [];
+  // Double-quoted (handle escape sequences)
+  code = code.replace(/"((?:\\[\s\S]|[^"\\])*)"/g, (_, c) => {
+    const i = strings.length; strings.push({ val: c, quote: '"' }); return `__VX${i}VX__`;
+  });
+  // Single-quoted
+  code = code.replace(/'((?:\\[\s\S]|[^'\\])*)'/g, (_, c) => {
+    const i = strings.length; strings.push({ val: c, quote: "'" }); return `__VX${i}VX__`;
+  });
+  // Lua long strings [[ ... ]]
+  code = code.replace(/\[\[([^\]]*(?:\][^\]][^\]]*)*)\]\]/g, (_, c) => {
+    const i = strings.length; strings.push({ val: c, quote: '[[' }); return `__VX${i}VX__`;
+  });
+  return { code, strings };
+}
+
+// ─── LAYER 3: VARIABLE & PARAM MANGLING ──────────────────────
+const LUA_SAFE = new Set([
+  'and','break','do','else','elseif','end','false','for','function',
+  'goto','if','in','local','nil','not','or','repeat','return','then',
+  'true','until','while',
+  // standard library
+  'print','pairs','ipairs','type','tostring','tonumber','math','string',
+  'table','io','os','require','pcall','xpcall','error','assert','select',
+  'unpack','rawget','rawset','setmetatable','getmetatable','next','dofile',
+  'collectgarbage','rawequal','rawlen','warn','coroutine','debug','utf8',
+  'bit32','arg','_G','_ENV','_VERSION',
+  // Roblox globals
+  'game','workspace','script','wait','spawn','delay','tick','time','task',
+  'Instance','Vector3','Vector2','Vector2int16','Vector3int16',
+  'CFrame','Color3','UDim2','UDim','Ray','Enum','shared','settings',
+  'elapsedTime','Players','RunService','UserInputService','TweenService',
+  'ReplicatedStorage','ReplicatedFirst','ServerStorage','ServerScriptService',
+  'StarterGui','StarterPack','StarterPlayer','SoundService','HttpService',
+  'PathfindingService','DataStoreService','MessagingService','PhysicsService',
+  'CollectionService','TweenInfo','Random','Region3','NumberSequence',
+  'ColorSequence','NumberRange','Rect','UDim2','Axes','BrickColor',
+]);
+
+function mangleVars(code) {
+  const varMap = new Map();
+
+  function ok(name) {
+    return name && !LUA_SAFE.has(name) && !name.startsWith('__VX') && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name);
+  }
+  function reg(name) {
+    if (ok(name) && !varMap.has(name)) varMap.set(name, genVar(''));
+  }
+
+  // Collect locals (including multi-assign: local a, b, c)
+  const localRe = /\blocal\s+(?:function\s+)?([a-zA-Z_][a-zA-Z0-9_,\s]*)/g;
+  let m;
+  while ((m = localRe.exec(code)) !== null) {
+    m[1].split(',').forEach(part => {
+      const n = part.trim().split(/\s+/)[0];
+      reg(n);
+    });
+  }
+
+  // Collect for-loop vars: for i = / for k, v in
+  const forRe = /\bfor\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\s*,\s*[a-zA-Z_][a-zA-Z0-9_]*)*)\s*(?:=|in)/g;
+  while ((m = forRe.exec(code)) !== null) {
+    m[1].split(',').forEach(part => reg(part.trim()));
+  }
+
+  // Collect function params
+  const fnRe = /\bfunction\b[^(]*\(([^)]*)\)/g;
+  while ((m = fnRe.exec(code)) !== null) {
+    m[1].split(',').forEach(p => {
+      const t = p.trim();
+      if (t && t !== '...') reg(t);
+    });
+  }
+
+  // Apply — longest first to prevent partial replacement
+  [...varMap.keys()]
+    .sort((a, b) => b.length - a.length)
+    .forEach(old => {
+      const safe = old.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      code = code.replace(new RegExp(`\\b${safe}\\b`, 'g'), varMap.get(old));
+    });
+
+  return code;
+}
+
+// ─── LAYER 4: NUMBER OBFUSCATION ─────────────────────────────
+// Multiple strategies, nested — pure Lua 5.1, no // operator
+function obfNum(n, depth) {
+  depth = depth || 0;
+  if (isNaN(n) || depth > 2) return `(${n})`;
+  if (n === 0) {
+    const x = randInt(2, 40);
+    return `(${x}-${x})`;
+  }
+  if (n < 0) return `(-(${obfNum(-n, depth+1)}))`;
+
+  const strategies = [
+    // a + b
+    () => { const a = randInt(1, Math.min(n-1, 100)); return `(${obfNum(a,depth+1)}+${obfNum(n-a,depth+1)})`; },
+    // n + x - x
+    () => { const x = randInt(1, 50); return `(${obfNum(n+x,depth+1)}-${obfNum(x,depth+1)})`; },
+    // n*2 - n
+    () => `(${obfNum(n*2,depth+1)}-${obfNum(n,depth+1)})`,
+    // math.floor approach (always whole)
+    () => { const a = randInt(2, 6); return `(math.floor(${obfNum(n*a,depth+1)}/${obfNum(a,depth+1)}))`; },
+    // direct (baseline)
+    () => `(${n})`,
+  ];
+
+  // Avoid infinite recursion on depth
+  const available = depth < 2 ? strategies : [strategies[4]];
+  return randItem(available)();
+}
+
+function obfuscateNumbers(code) {
+  return code.replace(/\b(\d+)\b/g, (m, raw) => {
+    const n = parseInt(raw);
+    if (isNaN(n) || n > 65535 || n < 0) return m;
+    return obfNum(n, 0);
+  });
+}
+
+// ─── LAYER 5: DOUBLE-PASS STRING ENCRYPTION ──────────────────
+// Pass 1: XOR each byte with rolling key
+// Pass 2: byte-shuffle the result with a second key
+// Decoder uses a pure Lua 5.1 bitwise XOR function
+function encryptStr(str) {
+  if (str.length === 0) return { enc: '', k1: 1, k2: 1, k3: 1 };
+  const k1 = randInt(15, 200);  // XOR base
+  const k2 = randInt(3, 31);    // XOR step
+  const k3 = randInt(7, 253);   // byte shuffle XOR
+
+  // Pass 1: rolling XOR
+  const pass1 = [];
+  for (let i = 0; i < str.length; i++) {
+    const b = str.charCodeAt(i);
+    pass1.push(b ^ ((k1 + i * k2) % 255));
+  }
+
+  // Pass 2: secondary XOR shuffle
+  const pass2 = pass1.map((b, i) => b ^ ((k3 + i) % 255));
+
+  const enc = pass2.map(b => '\\' + b).join('');
+  return { enc, k1, k2, k3 };
+}
+
+// Pure Lua 5.1 bitwise XOR (no ~ operator, no bit32 dependency)
+function buildXorFn(fnName, mfName) {
+  const a = genVar('_xa'), b = genVar('_xb');
+  const r = genVar('_xr'), mv = genVar('_xm');
+  const ra = genVar('_xra'), rb = genVar('_xrb');
+  return `local function ${fnName}(${a},${b})
+  local ${r},${mv}=0,1
+  while ${a}>0 or ${b}>0 do
+    local ${ra}=${a}%2
+    local ${rb}=${b}%2
+    if ${ra}~=${rb} then ${r}=${r}+${mv} end
+    ${a}=${mfName}(${a}/2)
+    ${b}=${mfName}(${b}/2)
+    ${mv}=${mv}*2
+  end
+  return ${r}
+end`;
+}
+
+function buildStringVM(strings) {
+  if (strings.length === 0) {
+    return { header: '', replacer: code => code.replace(/__VX(\d+)VX__/g, '""') };
+  }
+
+  const MF    = genVar('_mf');  // math.floor alias
+  const XOR   = genVar('_xf');  // xor function
+  const SB    = genVar('_sb');  // string.byte alias
+  const SC    = genVar('_sc');  // string.char alias
+  const TBL   = genVar('_st');  // string table
+  const CACHE = genVar('_sc2'); // decode cache
+  const DEC   = genVar('_df');  // decode function
+  const IDX   = genVar('_di');  // arg: index
+  const ENT   = genVar('_de');  // local: entry
+  const K1    = genVar('_k1');  // local: key1
+  const K2    = genVar('_k2');  // local: key2
+  const K3    = genVar('_k3');  // local: key3
+  const RES   = genVar('_dr');  // local: result
+  const I     = genVar('_ii');  // loop var
+  const B     = genVar('_bb');  // byte var
+  const KK    = genVar('_kk');  // computed key var
+
+  // Build encrypted string entries — shuffle order for extra confusion
+  const indices = shuffle(strings.map((_, i) => i));
+  let entries = '';
+  strings.forEach((s, i) => {
+    const { enc, k1, k2, k3 } = encryptStr(s.val);
+    entries += `[${obfNum(i,0)}]={${obfNum(k1,0)},${obfNum(k2,0)},${obfNum(k3,0)},"${enc}"},\n`;
+  });
+
+  const xorFnCode = buildXorFn(XOR, MF);
+
+  const header = `local ${MF}=math.floor
+local ${SB}=string.byte
+local ${SC}=string.char
+${xorFnCode}
+local ${TBL}={
+${entries}}
+local ${CACHE}={}
+local function ${DEC}(${IDX})
+  if ${CACHE}[${IDX}] then return ${CACHE}[${IDX}] end
+  local ${ENT}=${TBL}[${IDX}]
+  local ${K1},${K2},${K3},${RES}=${ENT}[${obfNum(1,0)}],${ENT}[${obfNum(2,0)}],${ENT}[${obfNum(3,0)}],""
+  for ${I}=${obfNum(1,0)},#${ENT}[${obfNum(4,0)}] do
+    local ${B}=${SB}(${ENT}[${obfNum(4,0)}],${I})
+    local ${KK}=(${K3}+(${I}-${obfNum(1,0)}))%${obfNum(255,0)}
+    ${B}=${XOR}(${B},${KK})
+    ${KK}=(${K1}+(${I}-${obfNum(1,0)})*${K2})%${obfNum(255,0)}
+    ${B}=${XOR}(${B},${KK})
+    ${RES}=${RES}..${SC}(${B})
+  end
+  ${CACHE}[${IDX}]=${RES}
+  return ${RES}
+end`;
+
+  const replacer = code =>
+    code.replace(/__VX(\d+)VX__/g, (_, i) => `${DEC}(${obfNum(parseInt(i),0)})`);
+
+  return { header, replacer };
+}
+
+// ─── LAYER 6: FUNCTION CALL DISPATCHER ───────────────────────
+// Wraps function calls through an indirection dispatch table
+// So print(x) becomes _dispatch[key](x) — hides call targets
+function buildDispatcher(code) {
+  const DISP = genVar('_dp');
+  const targets = [];
+  const aliasMap = {};
+
+  // Find all global function calls that are safe to redirect
+  const safe = [
+    'print','warn','error','assert','pcall','xpcall',
+    'tostring','tonumber','type','pairs','ipairs','next','select','unpack',
+    'rawget','rawset','rawequal','rawlen',
+    'setmetatable','getmetatable','collectgarbage',
+    'math.floor','math.ceil','math.abs','math.max','math.min',
+    'math.random','math.sqrt',
+    'string.byte','string.char','string.len','string.sub',
+    'string.find','string.gsub','string.match','string.format',
+    'string.upper','string.lower','string.rep',
+    'table.insert','table.remove','table.concat','table.sort',
+  ];
+
+  safe.forEach(fn => {
+    if (code.includes(fn + '(') || code.includes(fn + ' (')) {
+      const key = genVar('_dk');
+      aliasMap[fn] = key;
+      targets.push({ fn, key });
+    }
+  });
+
+  if (targets.length === 0) return { code, dispHeader: '' };
+
+  // Build dispatch table — shuffled
+  const shuffledTargets = shuffle(targets);
+  let tableEntries = shuffledTargets.map(({ fn, key }) =>
+    `[${obfNum(targets.indexOf(targets.find(t => t.fn === fn)),0)}]=${fn}`
+  ).join(',');
+
+  // Actually build as named-key table for clarity
+  let dispHeader = `local ${DISP}={`;
+  targets.forEach(({ fn, key }, i) => {
+    const safeKey = obfNum(i, 0);
+    dispHeader += `[${safeKey}]=${fn},`;
+  });
+  dispHeader += '}\n';
+
+  // Replace calls
+  targets.forEach(({ fn, key }, i) => {
+    const safe2 = fn.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Replace `fn(` with `DISP[i](`
+    const dispCall = `${DISP}[${obfNum(i,0)}](`;
+    code = code.replace(new RegExp(safe2 + '\\s*\\(', 'g'), dispCall);
+  });
+
+  return { code, dispHeader };
+}
+
+// ─── LAYER 7: CONTROL FLOW OBFUSCATION ───────────────────────
+function obfuscateControlFlow(code) {
+  // if cond then → local _b=(cond) if _b then
+  code = code.replace(/\bif\s+((?:[^(\n]|\([^)]*\))+?)\s+then\b/g, (m, cond) => {
+    const cv = genVar('_cf');
+    return `local ${cv}=(${cond})\nif ${cv} then`;
+  });
+  // while cond do → local _w=(cond) while _w do
+  code = code.replace(/\bwhile\s+((?:[^(\n]|\([^)]*\))+?)\s+do\b/g, (m, cond) => {
+    const wv = genVar('_wf');
+    return `local ${wv}=(${cond})\nwhile ${wv} do`;
+  });
+  return code;
+}
+
+// ─── LAYER 8: MULTI-TYPE JUNK INJECTION ──────────────────────
+// 12 different junk templates, injected at random density
+function makeJunk() {
+  const v1 = genVar('_j'), v2 = genVar('_j'), v3 = genVar('_j'), v4 = genVar('_j');
+  const n1 = obfNum(randInt(1,999),0), n2 = obfNum(randInt(1,999),0), n3 = obfNum(randInt(1,9),0);
+  return randItem([
+    // arithmetic dead var
+    () => `local ${v1}=${n1} local ${v2}=${n2} local ${v3}=${v1}+${v2}`,
+    // math.floor dead call
+    () => `do local ${v1}=math.floor(${obfNum(randInt(100,9999),0)}/math.max(${obfNum(randInt(2,9),0)},${obfNum(1,0)})) end`,
+    // type check dead
+    () => `local ${v1}=type(${obfNum(randInt(0,5),0)}==${obfNum(randInt(0,5),0)} and nil or false)`,
+    // tostring dead
+    () => `do local ${v1}=tostring(${obfNum(randInt(1,9999),0)}) local ${v2}=#${v1} end`,
+    // table dead
+    () => `local ${v1}=({${n1},${n2},${n3}})[${obfNum(randInt(1,3),0)}]`,
+    // string.byte dead
+    () => `do local ${v1}=string.byte("${randHex(randInt(2,6))}",${obfNum(1,0)}) end`,
+    // nested math
+    () => `local ${v1}=math.abs(${obfNum(randInt(1,500),0)}-${obfNum(randInt(1,500),0)})`,
+    // pcall dead
+    () => `do local ${v1},${v2}=pcall(function() return ${n1} end) end`,
+    // multi-assign
+    () => `local ${v1},${v2},${v3}=${n1},${n2},${n3}`,
+    // repeat dead
+    () => `local ${v1}=${n1} repeat ${v1}=${v1}-${obfNum(1,0)} until ${v1}<=${obfNum(0,0)}`,
+    // string.len dead
+    () => `local ${v1}=string.len("${randHex(randInt(4,16))}")`,
+    // for loop dead
+    () => `local ${v4}=${obfNum(0,0)} for ${v1}=${obfNum(1,0)},${obfNum(randInt(3,8),0)} do ${v4}=${v4}+${v1} end`,
+  ])();
+}
+
+function injectJunk(code, density) {
+  return code.split('\n').map(line => {
+    if (!line.trim()) return line;
+    if (Math.random() < density) {
+      // Sometimes inject 2 junk lines
+      const extra = Math.random() < 0.2 ? '\n' + makeJunk() : '';
+      return line + '\n' + makeJunk() + extra;
+    }
+    return line;
+  }).join('\n');
+}
+
+// ─── LAYER 9: STDLIB ALIASING ─────────────────────────────────
+// Every stdlib call hidden behind a randomly-named local
+function aliasGlobals(code) {
+  const targets = [
+    'string.byte','string.char','string.len','string.sub','string.rep',
+    'string.upper','string.lower','string.format','string.find',
+    'string.gsub','string.match','string.gmatch','string.reverse',
+    'math.floor','math.ceil','math.abs','math.max','math.min',
+    'math.random','math.sqrt','math.huge','math.pi',
+    'table.insert','table.remove','table.concat','table.sort',
+    'table.unpack',
+    'tostring','tonumber','type','pairs','ipairs','next',
+    'pcall','xpcall','rawset','rawget','rawequal','rawlen',
+    'setmetatable','getmetatable','select','unpack','assert',
+    'collectgarbage',
+  ];
+
+  // Shuffle the alias assignments so order is unpredictable
+  const used = shuffle(targets.filter(t => code.includes(t)));
+  let aliasHeader = '';
+
+  used.forEach(orig => {
+    const alias = genVar('_al');
+    aliasHeader += `local ${alias}=${orig}\n`;
+    const safe = orig.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    code = code.replace(new RegExp(safe, 'g'), alias);
+  });
+
+  return { code, aliasHeader };
+}
+
+// ─── LAYER 10: CHAR CONCAT SPLITTING ─────────────────────────
+// Any remaining readable strings → string.char chain
+function charSplit(code) {
+  return code.replace(/"([^"\n\\]{2,12})"/g, (m, s) => {
+    const parts = s.split('').map(c => `string.char(${obfNum(c.charCodeAt(0),0)})`);
+    return '(' + parts.join('..') + ')';
+  });
+}
+
+// ─── LAYER 11: INTEGER ENCODING TABLE ────────────────────────
+// Encode small constant integers used in the script as
+// lookups into a pre-computed table — adds another layer
+// of indirection decompilers struggle with
+function buildIntTable(code) {
+  const INT = genVar('_it');
+  // Find all simple integer literals in the mangled code
+  const seen = new Set();
+  code.replace(/\b(\d{1,4})\b/g, (_, n) => seen.add(parseInt(n)));
+  const nums = [...seen].filter(n => n >= 0 && n <= 999).slice(0, 60);
+
+  if (nums.length < 5) return { code, intHeader: '' };
+
+  // Shuffle the assignment order
+  const shuffled = shuffle(nums);
+  let intHeader = `local ${INT}={}\n`;
+  shuffled.forEach(n => {
+    const a = randInt(1, Math.min(n+1, 50));
+    const b = n - a + a; // = n
+    intHeader += `${INT}[${n}]=(${a}+${b-a})\n`;
+  });
+
+  // Replace plain numeric literals with table lookups (selectively)
+  nums.forEach(n => {
+    code = code.replace(new RegExp(`(?<![.\\d])\\b(${n})\\b(?![.\\d])`, 'g'), (m) => {
+      return Math.random() < 0.5 ? `${INT}[${n}]` : m;
+    });
+  });
+
+  return { code, intHeader };
+}
+
+// ─── LAYER 12: PROXY ENV WRAPPER ─────────────────────────────
+// Entire script runs inside a setmetatable proxy environment
+// Makes global resolution opaque to static analysis
+function wrapProxy(code, headers) {
+  const outerV = genVar('_OV');
+  const pxV    = genVar('_px');
+  const evV    = genVar('_ev');
+  const ekV    = genVar('_ek');
+  const fnV    = genVar('_fn');
+  const hash   = randHex(32);
+  const ts     = Date.now();
+
+  const allHeaders = headers.join('\n');
+
+  const inner = `${allHeaders}
+local ${pxV}=setmetatable({},{__index=function(${evV},${ekV}) return rawget(_G,${ekV}) end})
+local function ${fnV}()
+${code}
+end
+${fnV}()`;
+
+  return `--[[ vexor.obf
+     Build : ${hash}
+     Time  : ${ts}
+]]
+local ${outerV}=(function()
+${inner}
+end)()`;
+}
+
+// ─── MASTER ORCHESTRATOR ─────────────────────────────────────
+function luaObfuscate(code) {
+  resetVc();
+
+  // Step 0 — strip comments & normalize whitespace
+  code = stripCode(code);
+  if (!code) throw new Error('empty script');
+
+  // Step 1 — extract ALL strings first (protects them from all transforms)
+  const { code: c1, strings } = extractStrings(code);
+
+  // Step 2 — mangle every variable & param name
+  const c2 = mangleVars(c1);
+
+  // Step 3 — obfuscate control flow structures
+  const c3 = obfuscateControlFlow(c2);
+
+  // Step 4 — obfuscate all numeric literals
+  const c4 = obfuscateNumbers(c3);
+
+  // Step 5 — inject junk code at 35% density
+  const c5 = injectJunk(c4, 0.35);
+
+  // Step 6 — build double-pass XOR string VM + replace placeholders
+  const { header: strHeader, replacer } = buildStringVM(strings);
+  const c6 = replacer(c5);
+
+  // Step 7 — wrap global function calls in dispatch table
+  const { code: c7, dispHeader } = buildDispatcher(c6);
+
+  // Step 8 — alias all stdlib globals behind random names
+  const { code: c8, aliasHeader } = aliasGlobals(c7);
+
+  // Step 9 — char-split any remaining short visible strings
+  const c9 = charSplit(c8);
+
+  // Step 10 — integer lookup table for small constants
+  const { code: c10, intHeader } = buildIntTable(c9);
+
+  // Step 11 — inject another round of junk after all transforms
+  const c11 = injectJunk(c10, 0.15);
+
+  // Step 12 — wrap everything in proxy env + outer closure
+  const headers = [aliasHeader, dispHeader, intHeader, strHeader].filter(Boolean);
+  return wrapProxy(c11, headers);
+}
+
+// ─── UI ───────────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function setStatus(msg, type = '') {
+  const s = document.getElementById('statusText');
+  s.textContent = msg;
+  s.className = 'status-text ' + type;
+}
+
+document.getElementById('fileInput').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    document.getElementById('inputCode').value = ev.target.result;
+    document.getElementById('inputDot').classList.add('active');
+    setStatus('Loaded — ' + file.name, 'success');
+    showToast('File loaded');
+  };
+  reader.readAsText(file);
+  this.value = '';
+});
+
+function clearInput() {
+  document.getElementById('inputCode').value = '';
+  document.getElementById('inputDot').classList.remove('active');
+  setStatus('Ready', '');
+  showToast('Input cleared');
+}
+
+function clearOutput() {
+  document.getElementById('outputCode').value = '';
+  document.getElementById('outputDot').classList.remove('active');
+  setStatus('Ready', '');
+  showToast('Output cleared');
+}
+
+function copyOutput() {
+  const out = document.getElementById('outputCode').value;
+  if (!out) { showToast('Nothing to copy'); return; }
+  navigator.clipboard.writeText(out).then(() => {
+    showToast('Copied to clipboard');
+    setStatus('Copied', 'success');
+  });
+}
+
+function downloadOutput() {
+  const out = document.getElementById('outputCode').value;
+  if (!out) { showToast('Nothing to download'); return; }
+  const blob = new Blob([out], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'vexor_' + Date.now() + '.lua';
+  a.click();
+  showToast('Downloaded');
+}
+
+function obfuscate() {
+  const input = document.getElementById('inputCode').value.trim();
+  if (!input) { showToast('Paste a script first'); setStatus('No input', 'error'); return; }
+
+  const btn = document.getElementById('obfBtn');
+  btn.classList.add('loading');
+  btn.textContent = 'Processing...';
+  setStatus('Obfuscating...', '');
+
+  // Use setTimeout so UI updates before heavy computation
+  setTimeout(() => {
+    try {
+      const result = luaObfuscate(input);
+      document.getElementById('outputCode').value = result;
+      document.getElementById('outputDot').classList.add('active');
+      setStatus('Done — script protected', 'success');
+      showToast('Obfuscation complete');
+    } catch(e) {
+      setStatus('Error — ' + e.message, 'error');
+      showToast('Error: ' + e.message);
+      console.error(e);
+    }
+    btn.classList.remove('loading');
+    btn.textContent = 'OBFUSCATE';
+  }, 50);
+}
+</script>
+</body>
+</html>

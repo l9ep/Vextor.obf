@@ -679,6 +679,7 @@ function luaObfuscate(code) {
     `end ` +
     `local ${varChunk},${varErr}=loadstring(table.concat(${varDecoded})) ` +
     `assert(${varChunk},${varErr}) ` +
+    `if setfenv then setfenv(${varChunk},getfenv(1)) end ` +
     `${varChunk}()`;
 
   return out;
